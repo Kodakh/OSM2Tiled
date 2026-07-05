@@ -12,7 +12,8 @@ venv/
 
 # Generated outputs (regenerate with the commands in README.md)
 *.tmx
-preview_*.png
+*preview*.png
 
 # Keep the demo showcase files
 !demo_level.tmx
+!demo_preview.png
