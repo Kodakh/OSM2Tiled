@@ -89,18 +89,16 @@ template, custom tilesets, or a different visual theme.
 
 3. **Generate** (all flags optional — see the quick start above):
    ```bash
-   python osm2tiled.py generate \
-       --place "Story City, Iowa" \
-       --template ".../level_ALLSTARTER_usethistobuildnewlevels.tmx" \
-       --mapping mapping.json \
-       --out ".../assets/tiledmaps/level_countryside_01.tmx" \
+   python osm2tiled.py generate --place "Story City, Iowa" \
        --meters-per-tile 6 --size 200x200 --no-border --preview preview.png
    ```
-   `--bbox -118.268,34.041,-118.256,34.051` also works, as does geocoding via
-   `--place` (the bbox is then cropped to `--max-extent`, 1500 m by default).
-   **Important: the output `.tmx` must be written into `assets/tiledmaps/`**
-   so that the template's relative `.tsx` paths resolve and the modkit's
-   Tiled displays the assets.
+   `--center lat,lon` and `--bbox w,s,e,n` also work. To point at explicit
+   files, use `--template "<BRIGADOR>/assets/tiledmaps/level_ALLSTARTER_usethistobuildnewlevels.tmx"`,
+   `--mapping mapping.json` and `--out "<BRIGADOR>/assets/tiledmaps/level_x.tmx"`
+   (replace `<BRIGADOR>` with your actual game directory).
+   **Important: the output `.tmx` must land in `assets/tiledmaps/`** so that
+   the template's relative `.tsx` paths resolve and the modkit's Tiled
+   displays the assets — omitting `--out` does this automatically.
 
 4. **Run automapping in Tiled** (the modkit's `sjtiled` branch). If your
    mapping uses **automapper marker tiles** (recommended — see below), this
@@ -115,7 +113,7 @@ template, custom tilesets, or a different visual theme.
 
 6. **Validate**:
    ```bash
-   python osm2tiled.py validate ".../level_countryside_01.tmx" --mapping mapping.json
+   python osm2tiled.py validate "<BRIGADOR>/assets/tiledmaps/level_story_city_iowa.tmx" --mapping mapping.json
    ```
    Checks: the 4 required layers, consistent dimensions, ≥ 3 markers on
    `objectives`, turret count ≤ 8 (if `turret_gids` is set).

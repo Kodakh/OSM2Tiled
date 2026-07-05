@@ -1170,6 +1170,16 @@ def cmd_generate(args):
         base = Path(template_path).parent if template_path else Path(".")
         args.out = str(unique_path(base / f"level_{slug}.tmx"))
         log(f"Output: {args.out}")
+    # Fail fast on an unusable output path — before any network/raster work.
+    try:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise SystemExit(
+            f"Cannot create the output directory for --out {args.out!r}: {e}\n"
+            f"Check the path (placeholders like '.../' from documentation "
+            f"examples must be replaced with a real directory, e.g. your "
+            f"game's assets/tiledmaps). Tip: omit --out entirely and the "
+            f"tool will write next to the auto-detected template.")
 
     # --- data source ---------------------------------------------------------
     if args.geojson:
