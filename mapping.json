@@ -34,7 +34,27 @@
               3073, 3074, 3075, 3076, 3023, 3024,
               3025, 3026, 3027, 3028, 3029, 3030, 3031, 3032,
               3033, 3034, 3035, 3036, 3037, 3038, 3039, 3040,
-              3049, 3050, 3051, 3052, 3053, 3054, 3055, 3056],
+              3049, 3050, 3051, 3052, 3053, 3054, 3055, 3056,
+              3465, 3466, 3471, 3476, 3481, 3482, 3484, 3489, 3494, 3496,
+              3498, 3503, 3548, 3554, 3593, 3618, 3633, 3648, 3663, 3673],
+    "_comment_zones": "Zone pools (selected by OSM landuse/leisure/amenity polygons). decor_park = subdeck.tsx (firstgid 2903, park decks/furniture). decor_cemetery = graves.tsx (firstgid 3313, most-used gravestones). decor_industrial = indmini clutter from mini.tsx (firstgid 3465) + mini_big.tsx (firstgid 3820: pipes, tanks, poles). Generic decor gains citymini urban clutter from mini.tsx (one _0000 variant per design). building_catalog_industrial = modware.tsx modular warehouse pieces (firstgid 2595) + freeb.tsx industrial buildings (2625) + subsechut.tsx sheds (2927), all 1x1 sprites designed to tile adjacently. building_catalog_cemetery = crypts.tsx bigcrypt mausoleums (firstgid 3285).",
+    "decor_park": [2922, 2908, 2905, 2913, 2904, 2915, 2926, 2909, 2914, 2906,
+                   2921, 2918, 2907, 2919],
+    "decor_cemetery": [3337, 3339, 3340, 3338, 3335, 3350, 3362, 3361,
+                       3319, 3315, 3345, 3357, 3349, 3351],
+    "decor_industrial": [3709, 3713, 3717, 3719, 3721, 3722, 3723, 3724, 3725,
+                         3730, 3735, 3736, 3737, 3741, 3745, 3750, 3757,
+                         3820, 3821, 3823, 3826, 3831, 3836, 3840, 3842,
+                         3846, 3851, 3856, 3858, 3862, 3864, 3869],
+    "building_catalog_industrial": {
+      "1x1": [2622, 2599, 2623, 2596, 2624, 2603, 2600, 2621, 2620, 2598,
+              2602, 2601, 2595, 2612,
+              2635, 2625, 2636, 2626, 2631, 2634, 2632, 2627, 2633, 2644,
+              2933, 2931, 2932, 2934, 2928, 2930]
+    },
+    "building_catalog_cemetery": {
+      "1x1": [3310, 3311, 3312, 3309, 3304, 3301, 3293, 3296, 3288, 3289]
+    },
     "building_catalog": {
       "_comment": "automapper_prefabs markers (firstgid 4278): COMPLETE pre-assembled houses from the modkit, not subhouse corner parts. house1-1..4 (ids 0-3, 4 orientations, ~3x3 footprint) and house-2x2 (id 10, exact 2x2 footprint). WARNING: these are editor MARKERS (no JSON in assets/data/props) - they must be expanded by the modkit Tiled's automapping (suburbs_house*.tmx rules in rules.txt), which replaces them with the correct subhouse assembly + yard; without that pass the level will not load in game.",
       "3x3": [4278, 4279, 4280, 4281],
@@ -67,6 +87,9 @@
   "min_road_width_tiles": 2,
   "tree_density_in_grass": 0.25,
   "decor_density_in_grass": 0.04,
+  "decor_density_park": 0.10,
+  "decor_density_cemetery": 0.22,
+  "decor_density_industrial": 0.06,
   "car_density_on_road": 0.03,
   "roadside_fence_chance": 0.15
 }

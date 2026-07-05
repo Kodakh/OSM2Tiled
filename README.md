@@ -198,6 +198,8 @@ shipped levels and extracting each tile's dominant neighbor pattern.
 | `car` | scattered on road cells via `car_density_on_road` |
 | `rail` | prop placed on every rail cell — use the automapper `track` marker (expanded into connected track pieces by the modkit's automapping) |
 | `building_catalog` | `{"WxH": [gids]}` — building footprints are greedily tiled with the largest fitting entries. Anchor = bottom-left corner. **Prefer complete-building tiles or automapper prefabs** (e.g. `automapper_prefabs` house markers); tiles that are corner *parts* of multi-tile assemblies look broken when placed alone |
+| `building_catalog_industrial` / `building_catalog_cemetery` | same format; used for buildings inside `landuse=industrial` / `landuse=cemetery` zones (e.g. modular warehouses, crypt mausoleums), falling back to `building_catalog` |
+| `decor_park` / `decor_cemetery` / `decor_industrial` | zone-specific decor pools (park furniture, gravestones, industrial clutter) scattered with their own densities inside `leisure=park/garden`, cemetery and industrial polygons |
 
 ### `markers` — `objectives` layer
 
@@ -215,7 +217,8 @@ shipped levels and extracting each tile's dominant neighbor pattern.
 | Key | Meaning |
 |---|---|
 | `tree_density_in_grass` | probability per grass/ground cell (0–1) |
-| `decor_density_in_grass` | same, for `decor` props |
+| `decor_density_in_grass` | same, for `decor` props (outside zones) |
+| `decor_density_park/cemetery/industrial` | zone decor densities; zone decor is scattered before generic trees/decor and takes precedence inside its polygons |
 | `car_density_on_road` | probability per free road cell |
 | `roadside_fence_chance` | probability per continuous roadside run (≥ 8 cells) of becoming a fence |
 | `road_widths_m` | overrides the default per-`highway=*` widths (meters) |

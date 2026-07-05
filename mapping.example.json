@@ -33,11 +33,17 @@
     "decor": [],
     "car": [],
     "rail": [],
+    "_comment_zones": "Optional zone pools, applied inside OSM landuse=industrial, landuse=cemetery/amenity=grave_yard and leisure=park/garden polygons. Zone building catalogs fall back to building_catalog; zone decor pools fall back to decor.",
+    "decor_park": [],
+    "decor_cemetery": [],
+    "decor_industrial": [],
     "building_catalog": {
       "1x1": [0],
       "2x2": [0],
       "3x3": [0]
-    }
+    },
+    "building_catalog_industrial": {},
+    "building_catalog_cemetery": {}
   },
 
   "markers": {
@@ -62,6 +68,9 @@
 
   "min_road_width_tiles": 2,
   "tree_density_in_grass": 0.0,
+  "decor_density_park": 0.0,
+  "decor_density_cemetery": 0.0,
+  "decor_density_industrial": 0.0,
   "decor_density_in_grass": 0.0,
   "car_density_on_road": 0.0,
   "roadside_fence_chance": 0.0

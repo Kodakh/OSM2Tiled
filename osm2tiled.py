@@ -58,6 +58,11 @@ GROUND_NAMES = {G_GROUND: "ground", G_GRASS: "grass", G_WATER: "water",
                 G_PAVE: "pavement", G_ROAD: "road", G_RAIL: "rail"}
 # ----------------------------------------------------------- prop classes ---
 P_NONE, P_BUILDING, P_WALL, P_TREE, P_DECOR = 0, 1, 2, 3, 4
+# ----------------------------------------------------------- zone classes ---
+# Zones select which building catalog and decor pool applies (industrial
+# estates, cemeteries, parks); they do not paint ground tiles themselves.
+Z_NONE, Z_PARK, Z_CEMETERY, Z_INDUSTRIAL = 0, 1, 2, 3
+ZONE_NAMES = {Z_PARK: "park", Z_CEMETERY: "cemetery", Z_INDUSTRIAL: "industrial"}
 
 WALKABLE = {G_GROUND, G_GRASS, G_PAVE, G_ROAD, G_RAIL}  # props excluded
 ROADLIKE = {G_ROAD, G_PAVE}
@@ -216,6 +221,9 @@ def overpass_query(bbox):
         f'relation["natural"="water"]{bb};',
         f'way["waterway"~"^(river|canal|stream|riverbank)$"]{bb};',
         f'way["amenity"="parking"]{bb};',
+        f'way["landuse"="industrial"]{bb};',
+        f'relation["landuse"="industrial"]{bb};',
+        f'way["amenity"="grave_yard"]{bb};',
         f'way["barrier"~"^(wall|fence|hedge|retaining_wall)$"]{bb};',
         f'node["natural"="tree"]{bb};',
     ])
@@ -321,6 +329,13 @@ def classify(tags, geom_is_closed):
         out.append(("wall", "line", 1.0))
     if tags.get("natural") == "tree":
         out.append(("tree", "point", None))
+    # zones (building catalog / decor pool selectors, no ground tiles)
+    if tags.get("landuse") == "industrial":
+        out.append(("zone_industrial", "poly", None))
+    if tags.get("landuse") == "cemetery" or tags.get("amenity") == "grave_yard":
+        out.append(("zone_cemetery", "poly", None))
+    if tags.get("leisure") in ("park", "garden"):
+        out.append(("zone_park", "poly", None))
     return out
 
 def features_from_overpass(data):
@@ -469,10 +484,11 @@ def _mask(grid):
     return img, ImageDraw.Draw(img)
 
 def rasterize(feats, grid, rng, mapping):
-    """-> ground[h,w] (G_* classes), props[h,w] (P_* classes), building_mask, trees"""
+    """-> ground[h,w] (G_*), props[h,w] (P_*), building_mask, zones[h,w] (Z_*)"""
     order = ["grass", "water", "pavement", "road", "rail"]
     layers = {}
-    for cls in order + ["building", "wall"]:
+    for cls in order + ["building", "wall",
+                        "zone_park", "zone_cemetery", "zone_industrial"]:
         layers[cls] = _mask(grid)
     tree_pts = []
     for f in feats:
@@ -499,6 +515,11 @@ def rasterize(feats, grid, rng, mapping):
                      ("road", G_ROAD), ("rail", G_RAIL)]:
         ground[to_np(cls)] = gid
 
+    zones = np.zeros((grid.h, grid.w), dtype=np.uint8)
+    zones[to_np("zone_park")] = Z_PARK
+    zones[to_np("zone_cemetery")] = Z_CEMETERY
+    zones[to_np("zone_industrial")] = Z_INDUSTRIAL
+
     if float(mapping.get("min_road_width_tiles", 2) or 0) >= 2:
         _widen_thin_roads(ground)
 
@@ -522,19 +543,29 @@ def rasterize(feats, grid, rng, mapping):
     fence_chance = float(mapping.get("roadside_fence_chance", 0.0) or 0.0)
     if fence_chance > 0:
         _roadside_fences(ground, props, rng, fence_chance)
+    grassy = (ground == G_GRASS) | (ground == G_GROUND)
+    # zone decor first (graves, park furniture, industrial clutter), so it
+    # takes precedence over generic trees/decor inside its zone
+    for zid, zname in ZONE_NAMES.items():
+        zdens = float(mapping.get(f"decor_density_{zname}", 0.0) or 0.0)
+        if zdens > 0:
+            gy, gx = np.where(grassy & (props == P_NONE) & (zones == zid))
+            for i in range(len(gx)):
+                if rng.random() < zdens:
+                    props[gy[i], gx[i]] = P_DECOR
     dens = float(mapping.get("tree_density_in_grass", 0.0) or 0.0)
     if dens > 0:
-        gy, gx = np.where(((ground == G_GRASS) | (ground == G_GROUND)) & (props == P_NONE))
+        gy, gx = np.where(grassy & (props == P_NONE) & (zones != Z_INDUSTRIAL))
         for i in range(len(gx)):
             if rng.random() < dens:
                 props[gy[i], gx[i]] = P_TREE
     decor_dens = float(mapping.get("decor_density_in_grass", 0.0) or 0.0)
     if decor_dens > 0:
-        gy, gx = np.where(((ground == G_GRASS) | (ground == G_GROUND)) & (props == P_NONE))
+        gy, gx = np.where(grassy & (props == P_NONE) & (zones == Z_NONE))
         for i in range(len(gx)):
             if rng.random() < decor_dens:
                 props[gy[i], gx[i]] = P_DECOR
-    return ground, props, building
+    return ground, props, building, zones
 
 def _widen_thin_roads(ground):
     """Guarantees roads are at least 2 cells wide: any road cell whose two
@@ -955,7 +986,7 @@ def pick(rng, lst):
     lst = lst or [0]
     return int(rng.choice(lst))
 
-def grids_to_gids(ground, props, building_mask, markers, marker_mode,
+def grids_to_gids(ground, props, building_mask, zones, markers, marker_mode,
                   template_obj_grid, mapping, rng):
     h, w = ground.shape
     tiles = mapping.get("tiles", {})
@@ -1118,8 +1149,13 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
                         stack.append((nx, ny))
     for y, x in zip(*np.where(props == P_TREE)):
         g_props[y, x] = pick(rng, propmap.get("tree", [0]))
+    # decor pools per zone (graves in cemeteries, park furniture, industrial
+    # clutter), falling back to the generic pool
+    decor_default = propmap.get("decor", [0])
+    decor_by_zone = {zid: (propmap.get(f"decor_{zn}") or decor_default)
+                     for zid, zn in ZONE_NAMES.items()}
     for y, x in zip(*np.where(props == P_DECOR)):
-        g_props[y, x] = pick(rng, propmap.get("decor", [0]))
+        g_props[y, x] = pick(rng, decor_by_zone.get(int(zones[y, x]), decor_default))
 
     # Cars scattered on the road network (road cells without props).
     car_gids = propmap.get("car") or []
@@ -1136,22 +1172,41 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
         for y, x in zip(*np.where((ground == G_RAIL) & (g_props == 0))):
             g_props[y, x] = pick(rng, rail_gids)
 
-    catalog_raw = propmap.get("building_catalog", {}) or {}
-    catalog = {}
-    for key, gids in catalog_raw.items():
-        if key.startswith("_"):  # comment keys
-            continue
-        try:
-            cw, ch = (int(v) for v in key.lower().split("x"))
-            catalog[(cw, ch)] = gids
-        except Exception:
-            warn(f"Building catalog key ignored: {key!r} (expected format 'WxH')")
+    def _parse_catalog(raw):
+        cat = {}
+        for key, gids in (raw or {}).items():
+            if key.startswith("_"):  # comment keys
+                continue
+            try:
+                cw, ch = (int(v) for v in key.lower().split("x"))
+                cat[(cw, ch)] = gids
+            except Exception:
+                warn(f"Building catalog key ignored: {key!r} (expected format 'WxH')")
+        return cat
+
+    catalog = _parse_catalog(propmap.get("building_catalog"))
+    zone_catalogs = {
+        Z_INDUSTRIAL: _parse_catalog(propmap.get("building_catalog_industrial")) or catalog,
+        Z_CEMETERY: _parse_catalog(propmap.get("building_catalog_cemetery")) or catalog,
+        Z_PARK: catalog,
+    }
     if catalog:
-        rects = decompose_buildings(building_mask & (props == P_BUILDING), catalog)
+        bmask = building_mask & (props == P_BUILDING)
+        total = 0
+        for zid, cat in [(Z_INDUSTRIAL, zone_catalogs[Z_INDUSTRIAL]),
+                         (Z_CEMETERY, zone_catalogs[Z_CEMETERY])]:
+            zmask = bmask & (zones == zid)
+            if zmask.any() and cat is not catalog:
+                for (x, y, cw, ch) in decompose_buildings(zmask, cat):
+                    g_props[y + ch - 1, x] = pick(rng, cat[(cw, ch)])
+                    total += 1
+                bmask = bmask & ~zmask
+        rects = decompose_buildings(bmask, catalog)
         for (x, y, cw, ch) in rects:
             ax, ay = x, y + ch - 1  # Tiled anchor: bottom-left corner of the footprint
             g_props[ay, ax] = pick(rng, catalog[(cw, ch)])
-        log(f"{len(rects)} buildings placed (catalog: {sorted(catalog)})")
+        log(f"{len(rects) + total} buildings placed "
+            f"({total} in industrial/cemetery zones)")
     else:
         warn("No building catalog in the mapping: building cells left empty.")
 
@@ -1172,16 +1227,17 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
                 g_obj[y, x] = pick(rng, mk.get(name, [0]))
     return g_map, g_props, g_traps, g_obj
 
-def trim_to_content(ground, props, building_mask, margin=2):
+def trim_to_content(ground, props, building_mask, zones, margin=2):
     """Trims empty margins (bare ground without props) — rotation inflates the
     canvas with empty corners; crop back to actual content."""
     content = (ground != G_GROUND) | (props != P_NONE)
     if not content.any():
-        return ground, props, building_mask
+        return ground, props, building_mask, zones
     ys, xs = np.where(content)
     y0 = max(0, ys.min() - margin); y1 = min(ground.shape[0], ys.max() + 1 + margin)
     x0 = max(0, xs.min() - margin); x1 = min(ground.shape[1], xs.max() + 1 + margin)
-    return ground[y0:y1, x0:x1], props[y0:y1, x0:x1], building_mask[y0:y1, x0:x1]
+    return (ground[y0:y1, x0:x1], props[y0:y1, x0:x1],
+            building_mask[y0:y1, x0:x1], zones[y0:y1, x0:x1])
 
 def resize_center(arr, W, H, fill=0):
     """Crops/pads arr centered to (H,W). -> arr2, (offx, offy)"""
@@ -1353,8 +1409,8 @@ def cmd_generate(args):
     if grid.w * grid.h > args.max_cells:
         raise SystemExit(f"Grid {grid.w}×{grid.h} too large (> {args.max_cells} cells). "
                          f"Shrink the bbox or increase --meters-per-tile.")
-    ground, props, building_mask = rasterize(feats, grid, rng, mapping)
-    ground, props, building_mask = trim_to_content(ground, props, building_mask)
+    ground, props, building_mask, zones = rasterize(feats, grid, rng, mapping)
+    ground, props, building_mask, zones = trim_to_content(ground, props, building_mask, zones)
     if ground.shape != (grid.h, grid.w):
         log(f"Empty margins trimmed -> {ground.shape[1]}×{ground.shape[0]} tiles")
 
@@ -1372,6 +1428,7 @@ def cmd_generate(args):
         props, _ = resize_center(props, W, H, fill=P_NONE)
         building_mask, _ = resize_center(building_mask.astype(np.uint8), W, H, 0)
         building_mask = building_mask.astype(bool)
+        zones, _ = resize_center(zones, W, H, fill=Z_NONE)
 
     if root is None:
         tree, root, info, auto_map = build_standalone_template(W, H, standalone_dir)
@@ -1397,7 +1454,7 @@ def cmd_generate(args):
             if ly.get("name", "").lower() == "objectives":
                 tmpl_obj_grid = read_layer_grid(ly, info["width"], info["height"])
     g_map, g_props, g_traps, g_obj = grids_to_gids(
-        ground, props, building_mask, markers, mk_mode, tmpl_obj_grid, mapping, rng)
+        ground, props, building_mask, zones, markers, mk_mode, tmpl_obj_grid, mapping, rng)
 
     root.set("width", str(W)); root.set("height", str(H))
     for name, gridi in (("map", g_map), ("props", g_props),
