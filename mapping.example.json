@@ -12,7 +12,7 @@
     "road":     [0],
     "rail":     [0],
 
-    "_comment_edges": "Optional road edge/corner system. Straight edges are placed on road cells whose NW/NE/SW/SE side borders non-road; corners where two adjacent sides are exposed. Isometric convention: NW edge = neighbor (x-1,y), NE = (y-1), SE = (x+1), SW = (y+1). With the game's t_alltiles tileset (firstgid 1), the assignments derived from the shipped levels are: edges NW/NE/SW/SE = gids 29/30/33/34, corners N/E/W/S = [103,101,109]/[104,102,112]/[107,105,121]/[108,106,124].",
+    "_comment_edges": "Optional road edge/corner system. Straight edges are placed on road cells whose NW/NE/SW/SE side borders non-road; corners where two adjacent sides are exposed. Isometric convention: NW edge = neighbor (x-1,y), NE = (y-1), SE = (x+1), SW = (y+1). With the game's t_alltiles tileset (firstgid 1), the assignments verified against the shipped levels (~80k samples) are: a straight y-aligned road uses gid 29 (NW side) + gid 30 (SE side), a straight x-aligned road uses gid 34 (NE side) + gid 33 (SW side); corners N/E/W/S = 103/104/107/108.",
     "road_edge_nw": [],
     "road_edge_ne": [],
     "road_edge_sw": [],
