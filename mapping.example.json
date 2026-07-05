@@ -1,0 +1,63 @@
+{
+  "_comment_1": "Replace every 0 with a real GID read from the ALLSTARTER template.",
+  "_comment_2": "To find GIDs: `python osm2tiled.py inspect-template level_ALLSTARTER_usethistobuildnewlevels.tmx`, then open the template in the modkit's Tiled, click a tile and read its local ID + its tileset's firstgid (GID = firstgid + local ID).",
+  "_comment_3": "Every entry is a LIST: several GIDs = visual variants picked at random (deterministic via --seed).",
+
+  "tiles": {
+    "_comment": "'map' layer (ground). ground = default fill for unclassified cells.",
+    "ground":   [0],
+    "grass":    [0],
+    "water":    [0],
+    "pavement": [0],
+    "road":     [0],
+    "rail":     [0],
+
+    "_comment_edges": "Optional road edge/corner system. Straight edges are placed on road cells whose NW/NE/SW/SE side borders non-road; corners where two adjacent sides are exposed. Isometric convention: NW edge = neighbor (x-1,y), NE = (y-1), SE = (x+1), SW = (y+1). With the game's t_alltiles tileset (firstgid 1), the assignments derived from the shipped levels are: edges NW/NE/SW/SE = gids 29/30/33/34, corners N/E/W/S = [103,101,109]/[104,102,112]/[107,105,121]/[108,106,124].",
+    "road_edge_nw": [],
+    "road_edge_ne": [],
+    "road_edge_sw": [],
+    "road_edge_se": [],
+    "road_corner_n": [],
+    "road_corner_e": [],
+    "road_corner_w": [],
+    "road_corner_s": []
+  },
+
+  "props": {
+    "_comment": "'props' layer. building_catalog: 'WxH' keys = prop footprint in tiles; the tool tiles OSM footprints with the largest fitting entries. Tiled anchor = bottom-left corner of the footprint. PREFER complete-building tiles or automapper prefab markers (automapper_prefabs house tiles): tiles that are corner parts of multi-tile assemblies look broken when scattered alone. Automapper markers have no game-side prop JSON - running the modkit's automapping in Tiled is then REQUIRED before export.",
+    "wall": [0],
+    "tree": [0],
+    "decor": [],
+    "car": [],
+    "building_catalog": {
+      "1x1": [0],
+      "2x2": [0],
+      "3x3": [0]
+    }
+  },
+
+  "markers": {
+    "_comment": "'auto' mode = the tool places spawn/objective/exit on the road network (gids below required). 'preserve-template' mode = keeps the template's objectives layer as-is (requires --size template; falls back to auto otherwise) and makes the marker locations walkable. Default mode without gids: cells left at 0, to be placed manually in Tiled.",
+    "mode": "auto",
+    "spawn":     [0],
+    "objective": [0],
+    "exit":      [0]
+  },
+
+  "traps": {
+    "_comment": "Optional: trap gid placed on every water cell ('traps' layer).",
+    "water": []
+  },
+
+  "turret_gids": [],
+  "max_turrets": 8,
+
+  "road_widths_m": {
+    "_comment": "Overrides the default widths (meters), e.g. \"residential\": 9. At coarse scales (>= 12 m/tile), widen these so the road hierarchy stays readable."
+  },
+
+  "tree_density_in_grass": 0.0,
+  "decor_density_in_grass": 0.0,
+  "car_density_on_road": 0.0,
+  "roadside_fence_chance": 0.0
+}

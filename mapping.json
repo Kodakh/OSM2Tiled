@@ -1,0 +1,68 @@
+{
+  "_comment": "GIDs chosen by actual usage frequency: scan of the 36 levels shipped in the game's assets/tiledmaps/level_*.tmx (map/props layers decompressed, tallied per tileset + local id). We keep the tiles the game's level designers use most, filtered to exclude directional/junction variants (only suitable for 4/3/2/1/0-way automapping). 'ground' (default fill for every unclassified cell) uses the same GIDs as 'grass': the whole map background is grassy. No 'water' or 'rail' tile exists in t_alltiles (no shipped level has any): water falls back to the closest ground tone. Roads: only flat asphalt tiles without directional markings for the interior; edges/corners are handled by the road_edge_*/road_corner_* system (assignments derived from each tile's dominant neighbor pattern across the shipped levels).",
+
+  "tiles": {
+    "ground":   [72],
+    "grass":    [72],
+    "water":    [67, 66],
+    "pavement": [81, 84],
+    "road":     [61, 31, 35, 36],
+    "road_edge_nw": [29],
+    "road_edge_ne": [30],
+    "road_edge_sw": [33],
+    "road_edge_se": [34],
+    "road_corner_n": [103, 101, 109],
+    "road_corner_e": [104, 102, 112],
+    "road_corner_w": [107, 105, 121],
+    "road_corner_s": [108, 106, 124],
+    "rail":     [61]
+  },
+
+  "props": {
+    "_comment": "Coherent countryside theme (the game's 'suburbs' family + official modkit prefabs). tree = farmstead vegetation (ids 48-63, firstgid 3009) + real forest.tsx trees (firstgid 3081, ids 0-7). decor = farm equipment + barns/farmhouses/silo from farmstead (fields only). wall = automapper markers (firstgid 4247) expanded by the modkit's automapping: 0024-farmfence (4275), 0019-subwallbrick_bottom (4268), 0020-subwallbrickline (4270), 0018-subwallshrub (4267) - the script picks ONE style per connected run to avoid patchwork along a single fence. car = cars.tsx (firstgid 2340, 28 models), scattered on roads via car_density_on_road. buildings = complete house prefabs (see building_catalog).",
+    "wall": [4275, 4268, 4270, 4267],
+    "tree": [3057, 3058, 3059, 3060, 3061, 3062, 3063, 3064,
+             3065, 3066, 3067, 3068, 3069, 3070, 3071, 3072,
+             3081, 3082, 3083, 3084, 3085, 3086, 3087, 3088],
+    "car": [2340, 2341, 2342, 2343, 2344, 2345, 2346, 2347, 2348, 2349,
+            2350, 2351, 2352, 2353, 2354, 2355, 2356, 2357, 2358, 2359,
+            2360, 2361, 2362, 2363, 2364, 2365, 2366, 2367],
+    "decor": [3041, 3042, 3043, 3044, 3045, 3046, 3047, 3048,
+              3073, 3074, 3075, 3076, 3023, 3024,
+              3025, 3026, 3027, 3028, 3029, 3030, 3031, 3032,
+              3033, 3034, 3035, 3036, 3037, 3038, 3039, 3040,
+              3049, 3050, 3051, 3052, 3053, 3054, 3055, 3056],
+    "building_catalog": {
+      "_comment": "automapper_prefabs markers (firstgid 4278): COMPLETE pre-assembled houses from the modkit, not subhouse corner parts. house1-1..4 (ids 0-3, 4 orientations, ~3x3 footprint) and house-2x2 (id 10, exact 2x2 footprint). WARNING: these are editor MARKERS (no JSON in assets/data/props) - they must be expanded by the modkit Tiled's automapping (suburbs_house*.tmx rules in rules.txt), which replaces them with the correct subhouse assembly + yard; without that pass the level will not load in game.",
+      "3x3": [4278, 4279, 4280, 4281],
+      "2x2": [4288]
+    }
+  },
+
+  "markers": {
+    "_comment": "preserve-template: keeps the 'objective' marker (gid 144 @ 44,62) and the player spawn already placed in the ALLSTARTER template when the output size == template (120x120). As soon as --size differs (e.g. 200x200), the tool automatically falls back to 'auto' (warning logged) and then paints these GIDs on the 'objectives' layer: objective = gid 144 (OBJECTIVE tile from t_alltiles), spawn = gid 154 (Faction Spawners id 9, ai_state=PLAYER, same sprite as the template's spawn object), exit = gid 2205 (exits.tsx id 0, exitgate, same sprite as the template's exit object).",
+    "mode": "preserve-template",
+    "spawn":     [154],
+    "objective": [144],
+    "exit":      [2205]
+  },
+
+  "traps": {
+    "water": []
+  },
+
+  "turret_gids": [],
+  "max_turrets": 8,
+
+  "road_widths_m": {
+    "_comment": "Overridden for readable tile widths at 6-12 m/tile (otherwise every road, from farm track to motorway, rounds down to the 1-tile minimum and becomes indistinguishable). Values chosen to give ~1-2 tiles to small roads and 2-4 tiles to major axes.",
+    "track": 8, "service": 8, "living_street": 10, "residential": 12,
+    "unclassified": 12, "tertiary": 14, "secondary": 18, "primary": 22,
+    "trunk": 26, "motorway": 30
+  },
+
+  "tree_density_in_grass": 0.25,
+  "decor_density_in_grass": 0.04,
+  "car_density_on_road": 0.03,
+  "roadside_fence_chance": 0.15
+}

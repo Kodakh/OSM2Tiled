@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Overpass disk cache
+.osmcache/
+
+# Local tooling
+.claude/
+
+# Generated outputs (regenerate with the commands in README.md)
+*.tmx
+preview_*.png
+
+# Keep the demo showcase files
+!demo_level.tmx
