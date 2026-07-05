@@ -40,8 +40,8 @@
   },
 
   "markers": {
-    "_comment": "preserve-template: keeps the 'objective' marker (gid 144 @ 44,62) and the player spawn already placed in the ALLSTARTER template when the output size == template (120x120). As soon as --size differs (e.g. 200x200), the tool automatically falls back to 'auto' (warning logged) and then paints these GIDs on the 'objectives' layer: objective = gid 144 (OBJECTIVE tile from t_alltiles), spawn = gid 154 (Faction Spawners id 9, ai_state=PLAYER, same sprite as the template's spawn object), exit = gid 2205 (exits.tsx id 0, exitgate, same sprite as the template's exit object).",
-    "mode": "preserve-template",
+    "_comment": "auto: the tool places the three markers on the road network at any output size and paints these GIDs on the 'objectives' layer: objective = gid 144 (OBJECTIVE tile from t_alltiles), spawn = gid 154 (Faction Spawners id 9, ai_state=PLAYER), exit = gid 2205 (exits.tsx id 0, exitgate). Alternative: 'preserve-template' keeps the template's own objectives layer untouched (only meaningful when the output size equals the template's 120x120; otherwise the tool falls back to auto with a warning).",
+    "mode": "auto",
     "spawn":     [154],
     "objective": [144],
     "exit":      [2205]

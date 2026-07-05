@@ -101,6 +101,61 @@ def log(msg):
 def warn(msg):
     print(f"[{TOOL}] ⚠ {msg}", file=sys.stderr)
 
+# ------------------------------------------------- zero-config discovery ----
+
+CONFIG_PATH = Path.home() / ".osm2tiled.json"
+TEMPLATE_NAME = "level_ALLSTARTER_usethistobuildnewlevels.tmx"
+
+def load_user_config():
+    try:
+        return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+def save_user_config(cfg):
+    try:
+        CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    except Exception as e:
+        warn(f"Could not save {CONFIG_PATH}: {e}")
+
+def find_template(brigador_dir=None):
+    """Locates the ALLSTARTER template. Search order: --brigador-dir, the
+    BRIGADOR_DIR env var, the saved config, then common Steam paths."""
+    cands = []
+    if brigador_dir:
+        cands.append(Path(brigador_dir))
+    env = os.environ.get("BRIGADOR_DIR")
+    if env:
+        cands.append(Path(env))
+    saved = load_user_config().get("brigador_dir")
+    if saved:
+        cands.append(Path(saved))
+    for steam in ("C:/Program Files (x86)/Steam", "C:/Program Files/Steam",
+                  "D:/Steam", "D:/SteamLibrary", "E:/SteamLibrary",
+                  Path.home() / ".steam/steam", Path.home() / ".local/share/Steam"):
+        cands.append(Path(steam) / "steamapps/common/Brigador")
+    for c in cands:
+        for p in (c / "assets/tiledmaps" / TEMPLATE_NAME, c / TEMPLATE_NAME):
+            if p.exists():
+                return p
+    return None
+
+def slugify(s, maxlen=40):
+    out = "".join(ch.lower() if ch.isalnum() else "_" for ch in str(s))
+    while "__" in out:
+        out = out.replace("__", "_")
+    return out.strip("_")[:maxlen] or "map"
+
+def unique_path(p):
+    """Avoids clobbering an existing file: level_x.tmx -> level_x_02.tmx…"""
+    if not p.exists():
+        return p
+    for i in range(2, 100):
+        q = p.with_name(f"{p.stem}_{i:02d}{p.suffix}")
+        if not q.exists():
+            return q
+    return p
+
 # ============================================================== 1. FETCH ====
 
 def parse_bbox(s):
@@ -962,6 +1017,8 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
     catalog_raw = propmap.get("building_catalog", {}) or {}
     catalog = {}
     for key, gids in catalog_raw.items():
+        if key.startswith("_"):  # comment keys
+            continue
         try:
             cw, ch = (int(v) for v in key.lower().split("x"))
             catalog[(cw, ch)] = gids
@@ -1051,8 +1108,68 @@ def load_mapping(path):
     return m
 
 def cmd_generate(args):
+    # --- zero-config resolution ------------------------------------------------
+    # Template: --template, else auto-detected (--brigador-dir / BRIGADOR_DIR /
+    # saved config / common Steam paths). Mapping: --mapping, else the
+    # mapping.json shipped next to this script (GIDs for the stock ALLSTARTER).
+    template_path = args.template
+    if not template_path:
+        found = find_template(args.brigador_dir)
+        if found:
+            template_path = str(found)
+            log(f"Template auto-detected: {template_path}")
+    if args.brigador_dir and template_path:
+        cfg = load_user_config()
+        if cfg.get("brigador_dir") != args.brigador_dir:
+            cfg["brigador_dir"] = args.brigador_dir
+            save_user_config(cfg)
+            log(f"Brigador directory remembered in {CONFIG_PATH}")
+
+    if not args.mapping:
+        bundled = Path(__file__).resolve().parent / "mapping.json"
+        if template_path and bundled.exists():
+            args.mapping = str(bundled)
+            log(f"Mapping auto-selected: {bundled}")
     mapping = load_mapping(args.mapping)
     rng = random.Random(args.seed)
+
+    if template_path:
+        tree, root, info = load_template(template_path)
+        tmpl_markers = template_marker_cells(root, info)
+    else:
+        warn("No --template and no Brigador install found: generating a "
+             "standalone template (Tiled preview only, NOT loadable by "
+             "Brigador). Point me at the game with --brigador-dir.")
+        # free size determined after rasterization; placeholders assigned later
+        tree = root = info = None
+        tmpl_markers = []
+
+    # Target grid dimensions, if already known — they drive the default extent
+    # so that the fetched area matches what the grid can hold.
+    Wt = Ht = None
+    if args.size not in ("auto", "template"):
+        Wt, Ht = (int(v) for v in args.size.lower().split("x"))
+    elif args.size == "template" and info:
+        Wt, Ht = info["width"], info["height"]
+    max_extent = args.max_extent
+    if max_extent is None:
+        max_extent = max(Wt, Ht) * args.meters_per_tile if Wt else 1500.0
+        log(f"Max extent: {max_extent:.0f} m "
+            f"({'grid size × scale' if Wt else 'default'})")
+
+    # --- output path -------------------------------------------------------------
+    if not args.out:
+        if args.place:
+            slug = slugify(args.place)
+        elif args.center:
+            slug = "at_" + slugify(args.center)
+        elif args.bbox:
+            slug = "bbox_" + slugify(args.bbox)
+        else:
+            slug = slugify(Path(args.geojson).stem)
+        base = Path(template_path).parent if template_path else Path(".")
+        args.out = str(unique_path(base / f"level_{slug}.tmx"))
+        log(f"Output: {args.out}")
 
     # --- data source ---------------------------------------------------------
     if args.geojson:
@@ -1066,8 +1183,21 @@ def cmd_generate(args):
             bbox = (minx, miny, maxx, maxy)
         log(f"{len(feats_raw)} GeoJSON features loaded")
     else:
-        bbox = parse_bbox(args.bbox) if args.bbox else geocode_place(args.place)
-        bbox = clamp_bbox_extent(bbox, args.max_extent)
+        if args.center:
+            try:
+                lat, lon = (float(v) for v in args.center.split(","))
+            except Exception:
+                raise SystemExit("--center expects lat,lon (GPS decimal degrees)")
+            half = max_extent / 2.0
+            m_lat = 111320.0
+            m_lon = 111320.0 * math.cos(math.radians(lat))
+            bbox = (lon - half / m_lon, lat - half / m_lat,
+                    lon + half / m_lon, lat + half / m_lat)
+            log(f"GPS center {lat:.5f},{lon:.5f} -> bbox "
+                f"{bbox[0]:.5f},{bbox[1]:.5f},{bbox[2]:.5f},{bbox[3]:.5f}")
+        else:
+            bbox = parse_bbox(args.bbox) if args.bbox else geocode_place(args.place)
+            bbox = clamp_bbox_extent(bbox, max_extent)
         data = fetch_overpass(bbox, args.cache_dir, endpoint=args.overpass_url)
         feats_raw = features_from_overpass(data)
         log(f"{len(feats_raw)} features classified")
@@ -1083,17 +1213,7 @@ def cmd_generate(args):
         ang = float(args.rotate)
     feats, clip = rotate_features(feats, clip, ang)
 
-    # --- template --------------------------------------------------------------
     standalone_dir = Path(args.out).parent or Path(".")
-    if args.template:
-        tree, root, info = load_template(args.template)
-        tmpl_markers = template_marker_cells(root, info)
-    else:
-        warn("No --template: generating a standalone template (Tiled preview "
-             "only, NOT loadable by Brigador).")
-        # free size determined after rasterization; placeholders assigned later
-        tree = root = info = None
-        tmpl_markers = []
 
     # --- grid + rasterization -------------------------------------------------
     grid = Grid(clip, args.meters_per_tile)
@@ -1242,18 +1362,23 @@ def main():
 
     g = sub.add_parser("generate", help="generate a .tmx from OSM/GeoJSON")
     src = g.add_mutually_exclusive_group(required=True)
-    src.add_argument("--place", help="place name (Nominatim geocoding)")
+    src.add_argument("--place", help="place name, e.g. 'Story City, Iowa' (Nominatim geocoding)")
+    src.add_argument("--center", help="lat,lon GPS point; covered area = grid size × scale (or --max-extent)")
     src.add_argument("--bbox", help="west,south,east,north (degrees)")
     src.add_argument("--geojson", help="local FeatureCollection (OSM tags in properties)")
-    g.add_argument("--template", help="path to level_ALLSTARTER_usethistobuildnewlevels.tmx")
-    g.add_argument("--mapping", help="mapping.json (tile gids)")
-    g.add_argument("--out", required=True, help="output .tmx file (place it in assets/tiledmaps/)")
-    g.add_argument("--meters-per-tile", type=float, default=4.0)
+    g.add_argument("--brigador-dir", help="Brigador install/modkit root; auto-detected from BRIGADOR_DIR, "
+                   "a saved config or common Steam paths, and remembered after first use")
+    g.add_argument("--template", help="path to level_ALLSTARTER_usethistobuildnewlevels.tmx "
+                   "(default: auto-detected in the Brigador directory)")
+    g.add_argument("--mapping", help="mapping.json (tile gids; default: the one shipped with the tool)")
+    g.add_argument("--out", help="output .tmx (default: assets/tiledmaps/level_<place>.tmx next to the template)")
+    g.add_argument("--meters-per-tile", type=float, default=6.0)
     g.add_argument("--size", default="template",
                    help="'template' (default), 'auto', or 'WIDTHxHEIGHT' in tiles")
     g.add_argument("--rotate", default="auto", help="'auto' (default) or angle in degrees (0 = north up)")
     g.add_argument("--seed", type=int, default=1337)
-    g.add_argument("--max-extent", type=float, default=1500.0, help="max bbox side in meters")
+    g.add_argument("--max-extent", type=float, default=None,
+                   help="max bbox side in meters (default: grid size × scale, else 1500)")
     g.add_argument("--max-cells", type=int, default=1024 * 1024)
     g.add_argument("--no-border", action="store_true", help="no automatic perimeter wall")
     g.add_argument("--preview", help="preview PNG")

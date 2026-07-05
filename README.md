@@ -27,6 +27,36 @@ Python ≥ 3.9. No heavy dependencies (no GDAL/geopandas): rasterization is
 done with Pillow (1 pixel = 1 tile), OSM multipolygon assembly with Shapely
 (`polygonize`).
 
+## Quick start (with the game)
+
+Just give a location — the tool finds the game, the template and the tile
+mapping on its own:
+
+```bash
+# first run: point the tool at your Brigador install (remembered afterwards
+# in ~/.osm2tiled.json; the BRIGADOR_DIR env var and common Steam paths are
+# also checked automatically)
+python osm2tiled.py generate --place "Story City, Iowa" --brigador-dir "C:/path/to/Brigador"
+
+# from then on, a location is all you need:
+python osm2tiled.py generate --place "Montmartre, Paris"
+python osm2tiled.py generate --center "48.8867,2.3431"      # GPS point (lat,lon)
+python osm2tiled.py generate --bbox -93.61,42.17,-93.55,42.20
+```
+
+What gets resolved automatically:
+- **template**: `level_ALLSTARTER_usethistobuildnewlevels.tmx` in the game's
+  `assets/tiledmaps/`;
+- **mapping**: the `mapping.json` shipped with this repo (working GIDs for
+  the stock ALLSTARTER tilesets — see below to customize);
+- **output**: `assets/tiledmaps/level_<place>.tmx` next to the template
+  (never overwrites: a numeric suffix is added if the file exists);
+- **covered area**: grid size × scale (120×120 tiles × 6 m/tile = 720 m by
+  default; use `--size 200x200` and/or `--meters-per-tile` for more).
+
+Then open the result in the modkit's Tiled, run automapping (step 4 below),
+decorate, validate, export.
+
 ## Quick start (without the game)
 
 ```bash
@@ -40,20 +70,24 @@ loadable by Brigador**.
 
 ## Full workflow with the modkit
 
-1. **Inspect the template** shipped with the modkit:
+Steps 1–2 are **optional** when you target the stock ALLSTARTER template:
+the repo's `mapping.json` already contains working GIDs for it (derived by
+analyzing the game's 36 shipped levels). You only need them for a custom
+template, custom tilesets, or a different visual theme.
+
+1. *(optional)* **Inspect the template**:
    ```bash
    python osm2tiled.py inspect-template "Brigador/assets/tiledmaps/level_ALLSTARTER_usethistobuildnewlevels.tmx"
    ```
    The command lists tilesets (`firstgid`), layers, and the **GIDs of the
-   markers** already placed on the template's `objectives` layer — copy them
-   into your `mapping.json`.
+   markers** already placed on the template's `objectives` layer.
 
-2. **Fill in `mapping.json`** starting from `mapping.example.json`: for each
-   class (road, grass, wall, buildings by footprint size…), the GID of one or
-   more template tiles. In Tiled: click a tile → local ID;
-   GID = tileset `firstgid` + local ID.
+2. *(optional)* **Customize `mapping.json`** starting from
+   `mapping.example.json`: for each class (road, grass, wall, buildings by
+   footprint size…), the GID of one or more template tiles. In Tiled: click
+   a tile → local ID; GID = tileset `firstgid` + local ID.
 
-3. **Generate**:
+3. **Generate** (all flags optional — see the quick start above):
    ```bash
    python osm2tiled.py generate \
        --place "Story City, Iowa" \
@@ -129,12 +163,11 @@ the road wins (implicit flat bridge).
 `--meters-per-tile` × grid size = real-world coverage. Guidelines from
 practice:
 
-- **6 m/tile** works well: a typical house occupies a 2×2-cell footprint
-  (one complete house prefab), roads are 2-4 cells wide and legible.
-  One tile ≈ 36 m² ≈ 388 sq ft.
-- With a fixed grid (e.g. `--size 200x200` = 1.2 km at 6 m/tile), set
-  `--max-extent` to match, otherwise the centered crop throws away most of
-  the area.
+- **6 m/tile** (the default) works well: a typical house occupies a
+  2×2-cell footprint (one complete house prefab), roads are 2-4 cells wide
+  and legible. One tile ≈ 36 m² ≈ 388 sq ft.
+- `--max-extent` defaults to grid size × scale, so the fetched area always
+  matches what the grid can hold. Override it only to fetch less than that.
 - At coarse scales (≥ 12 m/tile), override `road_widths_m` in the mapping —
   otherwise every road rounds down to the 1-tile minimum and the hierarchy
   becomes unreadable.
