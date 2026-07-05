@@ -11,16 +11,19 @@
     "road_edge_ne": [30],
     "road_edge_sw": [33],
     "road_edge_se": [34],
-    "road_corner_n": [103, 101, 109],
-    "road_corner_e": [104, 102, 112],
-    "road_corner_w": [107, 105, 121],
-    "road_corner_s": [108, 106, 124],
+    "road_corner_n": [103],
+    "road_corner_e": [104],
+    "road_corner_w": [107],
+    "road_corner_s": [108],
+    "road_crosswalk_x": [114, 119],
+    "road_crosswalk_y": [115, 118],
     "rail":     [61]
   },
 
   "props": {
     "_comment": "Coherent countryside theme (the game's 'suburbs' family + official modkit prefabs). tree = farmstead vegetation (ids 48-63, firstgid 3009) + real forest.tsx trees (firstgid 3081, ids 0-7). decor = farm equipment + barns/farmhouses/silo from farmstead (fields only). wall = automapper markers (firstgid 4247) expanded by the modkit's automapping: 0024-farmfence (4275), 0019-subwallbrick_bottom (4268), 0020-subwallbrickline (4270), 0018-subwallshrub (4267) - the script picks ONE style per connected run to avoid patchwork along a single fence. car = cars.tsx (firstgid 2340, 28 models), scattered on roads via car_density_on_road. buildings = complete house prefabs (see building_catalog).",
     "wall": [4275, 4268, 4270, 4267],
+    "rail": [4273],
     "tree": [3057, 3058, 3059, 3060, 3061, 3062, 3063, 3064,
              3065, 3066, 3067, 3068, 3069, 3070, 3071, 3072,
              3081, 3082, 3083, 3084, 3085, 3086, 3087, 3088],

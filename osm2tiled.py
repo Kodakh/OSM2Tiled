@@ -940,11 +940,14 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
         for y, x in zip(ys, xs):
             g_map[y, x] = pick(rng, gids)
 
-    # Road edges and corners (t_alltiles). Per-cell detection of the 4
-    # exposed sides (non-road neighbor): two adjacent exposed sides -> curve
-    # corner tile, a single one -> straight edge tile. Assignments derived
-    # from actual usage in the game's shipped levels (dominant neighbor
-    # pattern per tile, cf. level_*.tmx analysis).
+    # Road edges, corners, inner corners and crosswalks (t_alltiles).
+    # Per-cell detection of the 4 exposed sides (non-road neighbor): two
+    # adjacent exposed sides -> curve corner tile, a single one -> straight
+    # edge tile, none but an exposed diagonal -> inner corner (curb wrapping
+    # a block corner at a junction). Crosswalks are painted on the first
+    # rank of each road arm entering a junction core. All assignments were
+    # derived from actual usage in the game's shipped levels (dominant
+    # neighbor pattern per tile, cf. level_*.tmx analysis).
     e_nw = tiles.get("road_edge_nw") or []
     e_ne = tiles.get("road_edge_ne") or []
     e_sw = tiles.get("road_edge_sw") or []
@@ -953,8 +956,48 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
     c_e = tiles.get("road_corner_e") or []
     c_w = tiles.get("road_corner_w") or []
     c_s = tiles.get("road_corner_s") or []
+    cw_x = tiles.get("road_crosswalk_x") or []
+    cw_y = tiles.get("road_crosswalk_y") or []
     if e_nw or e_ne or e_sw or e_se:
         roadlike = (ground == G_ROAD)
+
+        crosswalk = {}
+        if cw_x or cw_y:
+            # Run lengths through each road cell, along x and along y: an
+            # "arm" is long in one axis and road-width in the other; a
+            # junction core is long in both.
+            lx = np.zeros((h, w), dtype=np.int32)
+            ly = np.zeros((h, w), dtype=np.int32)
+            for yy in range(h):
+                xx = 0
+                while xx < w:
+                    if roadlike[yy, xx]:
+                        x0 = xx
+                        while xx < w and roadlike[yy, xx]:
+                            xx += 1
+                        lx[yy, x0:xx] = xx - x0
+                    else:
+                        xx += 1
+            for xx in range(w):
+                yy = 0
+                while yy < h:
+                    if roadlike[yy, xx]:
+                        y0 = yy
+                        while yy < h and roadlike[yy, xx]:
+                            yy += 1
+                        ly[y0:yy, xx] = yy - y0
+                    else:
+                        yy += 1
+            MINRUN, MAXWIDTH = 6, 5
+            core = roadlike & (lx >= MINRUN) & (ly >= MINRUN)
+            for yy, xx in zip(*np.where(roadlike & ~core)):
+                if cw_x and lx[yy, xx] >= MINRUN and ly[yy, xx] <= MAXWIDTH:
+                    if (xx > 0 and core[yy, xx - 1]) or (xx < w - 1 and core[yy, xx + 1]):
+                        crosswalk[(xx, yy)] = "x"
+                elif cw_y and ly[yy, xx] >= MINRUN and lx[yy, xx] <= MAXWIDTH:
+                    if (yy > 0 and core[yy - 1, xx]) or (yy < h - 1 and core[yy + 1, xx]):
+                        crosswalk[(xx, yy)] = "y"
+
         for y, x in zip(*np.where(roadlike)):
             nw = x == 0 or not roadlike[y, x - 1]
             ne = y == 0 or not roadlike[y - 1, x]
@@ -969,6 +1012,12 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
                 gid = pick(rng, c_w)
             elif se and sw and c_s:
                 gid = pick(rng, c_s)
+            elif (x, y) in crosswalk:
+                # the two gids of each pair are the two curb-row variants
+                if crosswalk[(x, y)] == "x":
+                    gid = cw_x[0] if ne else (cw_x[-1] if sw else pick(rng, cw_x))
+                else:
+                    gid = cw_y[0] if nw else (cw_y[-1] if se else pick(rng, cw_y))
             elif nw and e_nw:
                 gid = pick(rng, e_nw)
             elif ne and e_ne:
@@ -977,6 +1026,26 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
                 gid = pick(rng, e_sw)
             elif se and e_se:
                 gid = pick(rng, e_se)
+            elif not (nw or ne or sw or se):
+                # inner corners: a non-road diagonal touches one point of the
+                # cell -> wrap the curb around that block corner. Diagonal
+                # (x-1,y-1) sits screen-above (N point), (x+1,y+1) below (S),
+                # (x+1,y-1) right (E), (x-1,y+1) left (W). Only when exactly
+                # one diagonal is exposed — the center of a small crossing
+                # has several and must stay plain asphalt.
+                d_n = x > 0 and y > 0 and not roadlike[y - 1, x - 1]
+                d_e = x < w - 1 and y > 0 and not roadlike[y - 1, x + 1]
+                d_w = x > 0 and y < h - 1 and not roadlike[y + 1, x - 1]
+                d_s = x < w - 1 and y < h - 1 and not roadlike[y + 1, x + 1]
+                if d_n + d_e + d_w + d_s == 1:
+                    if d_n and c_n:
+                        gid = pick(rng, c_n)
+                    elif d_e and c_e:
+                        gid = pick(rng, c_e)
+                    elif d_w and c_w:
+                        gid = pick(rng, c_w)
+                    elif d_s and c_s:
+                        gid = pick(rng, c_s)
             if gid:
                 g_map[y, x] = gid
 
@@ -1013,6 +1082,13 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
         for y, x in zip(*np.where((ground == G_ROAD) & (g_props == 0))):
             if rng.random() < car_dens:
                 g_props[y, x] = pick(rng, car_gids)
+
+    # Railway props (e.g. the automapper 'track' marker that the modkit's
+    # automapping expands into connected flypaper track pieces).
+    rail_gids = propmap.get("rail") or []
+    if rail_gids:
+        for y, x in zip(*np.where((ground == G_RAIL) & (g_props == 0))):
+            g_props[y, x] = pick(rng, rail_gids)
 
     catalog_raw = propmap.get("building_catalog", {}) or {}
     catalog = {}

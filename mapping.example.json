@@ -20,7 +20,10 @@
     "road_corner_n": [],
     "road_corner_e": [],
     "road_corner_w": [],
-    "road_corner_s": []
+    "road_corner_s": [],
+    "_comment_crosswalks": "Crosswalk pairs for junction approaches; with t_alltiles: x = [114,119], y = [115,118].",
+    "road_crosswalk_x": [],
+    "road_crosswalk_y": []
   },
 
   "props": {
@@ -29,6 +32,7 @@
     "tree": [0],
     "decor": [],
     "car": [],
+    "rail": [],
     "building_catalog": {
       "1x1": [0],
       "2x2": [0],

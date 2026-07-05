@@ -180,7 +180,8 @@ See `mapping.example.json` for a commented skeleton. All keys:
 |---|---|
 | `ground`, `grass`, `water`, `pavement`, `road`, `rail` | list of GIDs, one picked at random per cell (seeded) |
 | `road_edge_nw/ne/sw/se` | straight road edge tiles, placed on road cells whose NW/NE/SW/SE side borders non-road |
-| `road_corner_n/e/w/s` | curved corner tiles, placed where two adjacent sides are exposed (bends, intersections) |
+| `road_corner_n/e/w/s` | curved corner tiles, placed where two adjacent sides are exposed (bends), and as inner corners where a single non-road diagonal touches the cell (curb wrapping a block corner at junctions) |
+| `road_crosswalk_x/y` | crosswalk tile pairs painted on the first rank of each road arm entering a junction (junctions are detected via road run lengths: long in both axes = core, long in one = arm) |
 
 The edge/corner orientation convention (isometric): NW edge ↔ neighbor
 `(x−1, y)`, NE ↔ `(y−1)`, SE ↔ `(x+1)`, SW ↔ `(y+1)`. The default
@@ -195,6 +196,7 @@ shipped levels and extracting each tile's dominant neighbor pattern.
 | `tree` | scattered on OSM tree nodes and via `tree_density_in_grass` |
 | `decor` | scattered via `decor_density_in_grass` (farm equipment, statues, rubble…) |
 | `car` | scattered on road cells via `car_density_on_road` |
+| `rail` | prop placed on every rail cell — use the automapper `track` marker (expanded into connected track pieces by the modkit's automapping) |
 | `building_catalog` | `{"WxH": [gids]}` — building footprints are greedily tiled with the largest fitting entries. Anchor = bottom-left corner. **Prefer complete-building tiles or automapper prefabs** (e.g. `automapper_prefabs` house markers); tiles that are corner *parts* of multi-tile assemblies look broken when placed alone |
 
 ### `markers` — `objectives` layer
