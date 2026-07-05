@@ -91,6 +91,7 @@ DEFAULT_MAPPING = {
     "traps": {"water": []},      # optional: trap gid placed on every water cell
     "turret_gids": [],           # gids counted by 'validate' (Brigador limit: 8)
     "road_widths_m": {},         # overrides ROAD_WIDTHS_M, e.g. {"residential": 9}
+    "min_road_width_tiles": 2,   # roads never rasterize thinner than this
     "tree_density_in_grass": 0.0,
     "max_turrets": 8,
 }
@@ -487,6 +488,9 @@ def rasterize(feats, grid, rng, mapping):
             _draw_poly(draw, grid, f["geom"], 1)
         else:
             width_px = (f["width_m"] or grid.mpt) / grid.mpt
+            if cls == "road":
+                min_w = float(mapping.get("min_road_width_tiles", 2) or 0)
+                width_px = max(min_w, width_px)
             _draw_line(draw, grid, f["geom"], 1, width_px)
 
     to_np = lambda cls: (np.asarray(layers[cls][0], dtype=np.uint8) > 0)
@@ -494,6 +498,9 @@ def rasterize(feats, grid, rng, mapping):
     for cls, gid in [("grass", G_GRASS), ("water", G_WATER), ("pavement", G_PAVE),
                      ("road", G_ROAD), ("rail", G_RAIL)]:
         ground[to_np(cls)] = gid
+
+    if float(mapping.get("min_road_width_tiles", 2) or 0) >= 2:
+        _widen_thin_roads(ground)
 
     building = to_np("building")
     building = _fill_pinholes(building)
@@ -528,6 +535,26 @@ def rasterize(feats, grid, rng, mapping):
             if rng.random() < decor_dens:
                 props[gy[i], gx[i]] = P_DECOR
     return ground, props, building
+
+def _widen_thin_roads(ground):
+    """Guarantees roads are at least 2 cells wide: any road cell whose two
+    opposite sides are both non-road gains a neighbor cell (staircase corners
+    of diagonal streets included). Single pass over the original mask."""
+    road = (ground == G_ROAD)
+    h, w = road.shape
+    grow = []
+    for y, x in zip(*np.where(road)):
+        nw = x == 0 or not road[y, x - 1]
+        se = x == w - 1 or not road[y, x + 1]
+        ne = y == 0 or not road[y - 1, x]
+        sw = y == h - 1 or not road[y + 1, x]
+        if nw and se and x < w - 1:
+            grow.append((y, x + 1))
+        if ne and sw and y < h - 1:
+            grow.append((y + 1, x))
+    for y, x in grow:
+        ground[y, x] = G_ROAD
+    return len(grow)
 
 def _roadside_fences(ground, props, rng, chance, min_run=8):
     """Fences along roads: continuous runs of grass/ground cells bordering the

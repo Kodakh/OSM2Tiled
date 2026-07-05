@@ -60,6 +60,7 @@
     "_comment": "Overrides the default widths (meters), e.g. \"residential\": 9. At coarse scales (>= 12 m/tile), widen these so the road hierarchy stays readable."
   },
 
+  "min_road_width_tiles": 2,
   "tree_density_in_grass": 0.0,
   "decor_density_in_grass": 0.0,
   "car_density_on_road": 0.0,

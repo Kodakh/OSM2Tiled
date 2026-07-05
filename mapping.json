@@ -64,6 +64,7 @@
     "trunk": 26, "motorway": 30
   },
 
+  "min_road_width_tiles": 2,
   "tree_density_in_grass": 0.25,
   "decor_density_in_grass": 0.04,
   "car_density_on_road": 0.03,

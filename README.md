@@ -219,6 +219,7 @@ shipped levels and extracting each tile's dominant neighbor pattern.
 | `car_density_on_road` | probability per free road cell |
 | `roadside_fence_chance` | probability per continuous roadside run (≥ 8 cells) of becoming a fence |
 | `road_widths_m` | overrides the default per-`highway=*` widths (meters) |
+| `min_road_width_tiles` | roads never rasterize thinner than this (default 2; a post-raster pass also widens the staircase corners of diagonal streets) |
 | `traps.water` | optional trap GID placed on every water cell (`traps` layer) |
 | `turret_gids`, `max_turrets` | used by `validate` to enforce the 8-turret limit |
 
