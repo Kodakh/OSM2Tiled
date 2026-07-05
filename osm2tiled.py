@@ -988,33 +988,34 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
     if e_nw or e_ne or e_sw or e_se:
         roadlike = (ground == G_ROAD)
 
+        # Run lengths through each road cell, along x and along y: an "arm"
+        # is long in one axis and road-width in the other; a junction core
+        # is long in both; a diagonal-street staircase is short in both.
+        lx = np.zeros((h, w), dtype=np.int32)
+        ly = np.zeros((h, w), dtype=np.int32)
+        for yy in range(h):
+            xx = 0
+            while xx < w:
+                if roadlike[yy, xx]:
+                    x0 = xx
+                    while xx < w and roadlike[yy, xx]:
+                        xx += 1
+                    lx[yy, x0:xx] = xx - x0
+                else:
+                    xx += 1
+        for xx in range(w):
+            yy = 0
+            while yy < h:
+                if roadlike[yy, xx]:
+                    y0 = yy
+                    while yy < h and roadlike[yy, xx]:
+                        yy += 1
+                    ly[y0:yy, xx] = yy - y0
+                else:
+                    yy += 1
+
         crosswalk = {}
         if cw_x or cw_y:
-            # Run lengths through each road cell, along x and along y: an
-            # "arm" is long in one axis and road-width in the other; a
-            # junction core is long in both.
-            lx = np.zeros((h, w), dtype=np.int32)
-            ly = np.zeros((h, w), dtype=np.int32)
-            for yy in range(h):
-                xx = 0
-                while xx < w:
-                    if roadlike[yy, xx]:
-                        x0 = xx
-                        while xx < w and roadlike[yy, xx]:
-                            xx += 1
-                        lx[yy, x0:xx] = xx - x0
-                    else:
-                        xx += 1
-            for xx in range(w):
-                yy = 0
-                while yy < h:
-                    if roadlike[yy, xx]:
-                        y0 = yy
-                        while yy < h and roadlike[yy, xx]:
-                            yy += 1
-                        ly[y0:yy, xx] = yy - y0
-                    else:
-                        yy += 1
             MINRUN, MAXWIDTH = 6, 5
             core = roadlike & (lx >= MINRUN) & (ly >= MINRUN)
             for yy, xx in zip(*np.where(roadlike & ~core)):
@@ -1025,19 +1026,26 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
                     if (yy > 0 and core[yy - 1, xx]) or (yy < h - 1 and core[yy + 1, xx]):
                         crosswalk[(xx, yy)] = "y"
 
+        # Corner curves only where two long runs actually meet (real bends
+        # and junction block corners). The staircase steps of diagonal
+        # streets have short runs in both axes and get plain edge tiles
+        # instead — matching the shipped levels, where the curve tiles are
+        # about 60x rarer than the straight edges.
+        CORNER_MINRUN = 4
         for y, x in zip(*np.where(roadlike)):
             nw = x == 0 or not roadlike[y, x - 1]
             ne = y == 0 or not roadlike[y - 1, x]
             se = x == w - 1 or not roadlike[y, x + 1]
             sw = y == h - 1 or not roadlike[y + 1, x]
+            corner_ok = lx[y, x] >= CORNER_MINRUN and ly[y, x] >= CORNER_MINRUN
             gid = None
-            if nw and ne and c_n:
+            if nw and ne and c_n and corner_ok:
                 gid = pick(rng, c_n)
-            elif ne and se and c_e:
+            elif ne and se and c_e and corner_ok:
                 gid = pick(rng, c_e)
-            elif nw and sw and c_w:
+            elif nw and sw and c_w and corner_ok:
                 gid = pick(rng, c_w)
-            elif se and sw and c_s:
+            elif se and sw and c_s and corner_ok:
                 gid = pick(rng, c_s)
             elif (x, y) in crosswalk:
                 # the two gids of each pair are the two curb-row variants
@@ -1045,34 +1053,45 @@ def grids_to_gids(ground, props, building_mask, markers, marker_mode,
                     gid = cw_x[0] if ne else (cw_x[-1] if sw else pick(rng, cw_x))
                 else:
                     gid = cw_y[0] if nw else (cw_y[-1] if se else pick(rng, cw_y))
-            elif nw and e_nw:
-                gid = pick(rng, e_nw)
-            elif ne and e_ne:
-                gid = pick(rng, e_ne)
-            elif sw and e_sw:
-                gid = pick(rng, e_sw)
-            elif se and e_se:
-                gid = pick(rng, e_se)
-            elif not (nw or ne or sw or se):
+            elif (nw or ne or sw or se):
+                # straight edges; when two sides are exposed without a
+                # corner (staircase step), follow the dominant axis: the
+                # x-aligned curb pair is NE/SW, the y-aligned pair NW/SE.
+                x_road = lx[y, x] >= ly[y, x]
+                if x_road and ne and e_ne:
+                    gid = pick(rng, e_ne)
+                elif x_road and sw and e_sw:
+                    gid = pick(rng, e_sw)
+                elif nw and e_nw:
+                    gid = pick(rng, e_nw)
+                elif se and e_se:
+                    gid = pick(rng, e_se)
+                elif ne and e_ne:
+                    gid = pick(rng, e_ne)
+                elif sw and e_sw:
+                    gid = pick(rng, e_sw)
+            else:
                 # inner corners: a non-road diagonal touches one point of the
                 # cell -> wrap the curb around that block corner. Diagonal
                 # (x-1,y-1) sits screen-above (N point), (x+1,y+1) below (S),
-                # (x+1,y-1) right (E), (x-1,y+1) left (W). Only when exactly
-                # one diagonal is exposed — the center of a small crossing
-                # has several and must stay plain asphalt.
-                d_n = x > 0 and y > 0 and not roadlike[y - 1, x - 1]
-                d_e = x < w - 1 and y > 0 and not roadlike[y - 1, x + 1]
-                d_w = x > 0 and y < h - 1 and not roadlike[y + 1, x - 1]
-                d_s = x < w - 1 and y < h - 1 and not roadlike[y + 1, x + 1]
-                if d_n + d_e + d_w + d_s == 1:
-                    if d_n and c_n:
-                        gid = pick(rng, c_n)
-                    elif d_e and c_e:
-                        gid = pick(rng, c_e)
-                    elif d_w and c_w:
-                        gid = pick(rng, c_w)
-                    elif d_s and c_s:
-                        gid = pick(rng, c_s)
+                # (x+1,y-1) right (E), (x-1,y+1) left (W). Only at genuine
+                # junctions (long runs both ways) and when exactly one
+                # diagonal is exposed — the center of a small crossing and
+                # diagonal staircases must stay plain asphalt.
+                if corner_ok:
+                    d_n = x > 0 and y > 0 and not roadlike[y - 1, x - 1]
+                    d_e = x < w - 1 and y > 0 and not roadlike[y - 1, x + 1]
+                    d_w = x > 0 and y < h - 1 and not roadlike[y + 1, x - 1]
+                    d_s = x < w - 1 and y < h - 1 and not roadlike[y + 1, x + 1]
+                    if d_n + d_e + d_w + d_s == 1:
+                        if d_n and c_n:
+                            gid = pick(rng, c_n)
+                        elif d_e and c_e:
+                            gid = pick(rng, c_e)
+                        elif d_w and c_w:
+                            gid = pick(rng, c_w)
+                        elif d_s and c_s:
+                            gid = pick(rng, c_s)
             if gid:
                 g_map[y, x] = gid
 
